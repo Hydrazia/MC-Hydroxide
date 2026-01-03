@@ -52,7 +52,7 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input,gp)
 		Signal = UserInput.InputEnded:Connect(function()
 			for i, v in pairs(touching) do
 				if v == true then
-					--print(i,v)
+					
 				end
 				touching[i] = false
 			end
@@ -77,7 +77,7 @@ function moduleError(err)
 	end
 
 	MessageBox.Show("An error has occurred", message, MessageType.OK, function()
-		--Interface:Destroy()
+		
 	end)
 end
 
@@ -113,6 +113,10 @@ function oh.getStatus()
 	return Status.Text:gsub('• Status: ', '')
 end
 
+Open.Active = true
+Drag.Active = true
+Collapse.Active = true
+
 local dragging, dragStart, startPos
 
 Drag.InputBegan:Connect(function(input)
@@ -144,20 +148,152 @@ Open.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
+Open.Activated:Connect(function()
+	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
+	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
+end)
+
 Collapse.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
 end)
+
+Collapse.Activated:Connect(function()
+	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
+	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
+end)
+
+task.spawn(function()
+	local success, pages = pcall(function()
+		return Base:WaitForChild("Body", 5):WaitForChild("Pages", 5)
+	end)
+	
+	if not success or not pages then
+		return
+	end
+	
+	local function hasResults(resultsContainer)
+		if not resultsContainer then return false end
+		
+		local childCount = 0
+		for _, child in pairs(resultsContainer:GetChildren()) do
+			if not child:IsA("UIListLayout") and 
+			   not child:IsA("UIPadding") and 
+			   not child:IsA("UICorner") and
+			   not child:IsA("UIGridLayout") and
+			   not child:IsA("UISizeConstraint") then
+				childCount = childCount + 1
+			end
+		end
+		
+		return childCount > 0
+	end
+	
+	local function updateResultStatus(resultStatus)
+		if not resultStatus or not resultStatus.Parent then return end
+		
+		pcall(function()
+			resultStatus.Active = false
+		end)
+		
+		local resultsContainer = resultStatus.Parent:FindFirstChild("Content") 
+			or resultStatus.Parent:FindFirstChild("Results")
+			or resultStatus.Parent:FindFirstChild("List")
+			or resultStatus.Parent:FindFirstChild("Container")
+		
+		if resultsContainer then
+			pcall(function()
+				resultsContainer.Active = true
+			end)
+			
+			local function updateVisibility()
+				pcall(function()
+					local hasContent = hasResults(resultsContainer)
+					resultStatus.Visible = not hasContent
+				end)
+			end
+			
+			updateVisibility()
+			
+			local addedConnection = resultsContainer.ChildAdded:Connect(function()
+				task.wait(0.05)
+				updateVisibility()
+			end)
+			
+			local removedConnection = resultsContainer.ChildRemoved:Connect(function()
+				task.wait(0.05)
+				updateVisibility()
+			end)
+			
+			if not oh.Events.ResultStatusConnections then
+				oh.Events.ResultStatusConnections = {}
+			end
+			
+			table.insert(oh.Events.ResultStatusConnections, addedConnection)
+			table.insert(oh.Events.ResultStatusConnections, removedConnection)
+		else
+			pcall(function()
+				resultStatus.Visible = true
+			end)
+		end
+	end
+	
+	for _, descendant in pairs(Interface:GetDescendants()) do
+		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
+			pcall(function()
+				descendant.Active = false
+				updateResultStatus(descendant)
+			end)
+		end
+	end
+	
+	Interface.DescendantAdded:Connect(function(descendant)
+		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
+			task.wait(0.1)
+			pcall(function()
+				descendant.Active = false
+				updateResultStatus(descendant)
+			end)
+		end
+		
+		if descendant:IsA("GuiButton") or descendant:IsA("TextButton") or 
+		   descendant:IsA("ImageButton") or descendant:IsA("Frame") or 
+		   descendant:IsA("ScrollingFrame") or descendant:IsA("TextBox") then
+			pcall(function()
+				descendant.Active = true
+			end)
+		end
+	end)
+end)
+
+local originalExit = oh.Exit
+oh.Exit = function()
+	if oh.Events.ResultStatusConnections then
+		for _, connection in pairs(oh.Events.ResultStatusConnections) do
+			pcall(function()
+				connection:Disconnect()
+			end)
+		end
+		oh.Events.ResultStatusConnections = nil
+	end
+	
+	if originalExit then
+		originalExit()
+	end
+end
 
 Interface.Name = HttpService:GenerateGUID(false)
 if getHui then
 	Interface.Parent = CoreGui or getHui()
 else
 	if syn then
-		--syn.protect_gui(Interface)
+		
 	end
 
 	Interface.Parent = CoreGui
 end
+
+Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
+Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
 
 return Interface
