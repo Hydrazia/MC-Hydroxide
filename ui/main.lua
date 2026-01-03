@@ -165,6 +165,24 @@ Collapse.MouseButton1Click:Connect(function()
 end)
 
 task.spawn(function()
+	-- SCROLLING FIX: Auto-Apply AutomaticCanvasSize to all ScrollingFrames
+	local function FixScrolling(obj)
+		if obj:IsA("ScrollingFrame") then
+			obj.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			obj.CanvasSize = UDim2.new(0, 0, 0, 0)
+			obj.ScrollBarThickness = 6 -- Ensure scrollbar is thick enough to see
+		end
+	end
+
+	-- Apply to existing
+	for _, v in pairs(Interface:GetDescendants()) do
+		FixScrolling(v)
+	end
+	
+	-- Apply to new (dynamically added tabs/lists)
+	Interface.DescendantAdded:Connect(FixScrolling)
+
+	-- EXISTING RESULT STATUS LOGIC
 	local success, pages = pcall(function()
 		return Base:WaitForChild("Body", 5):WaitForChild("Pages", 5)
 	end)
@@ -203,8 +221,13 @@ task.spawn(function()
 			or resultStatus.Parent:FindFirstChild("Container")
 		
 		if resultsContainer then
+			-- Ensure container is visible and scrolling is handled
 			pcall(function()
 				resultsContainer.Active = true
+				if resultsContainer:IsA("ScrollingFrame") then
+					resultsContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+					resultsContainer.CanvasSize = UDim2.new(0,0,0,0)
+				end
 			end)
 			
 			local function updateVisibility()
