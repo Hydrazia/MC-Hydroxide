@@ -201,6 +201,82 @@ Collapse.MouseButton1Click:Connect(function()
 end)
 
 Interface.Name = HttpService:GenerateGUID(false)
+
+task.spawn(function()
+	-- Fix ScrollingFrames so they resize properly
+	local function FixScrolling(obj)
+		if obj:IsA("ScrollingFrame") then
+			obj.AutomaticCanvasSize = Enum.AutomaticSize.None
+			obj.ScrollBarThickness = 4
+			
+			local layout = obj:FindFirstChildWhichIsA("UIGridStyleLayout")
+			if layout then
+				local function update()
+					obj.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+				end
+				layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+				update()
+			end
+		end
+	end
+
+	-- Apply scrolling fix to all existing descendants
+	for _, v in pairs(Interface:GetDescendants()) do
+		FixScrolling(v)
+	end
+	
+	-- Apply scrolling fix to new descendants
+	Interface.DescendantAdded:Connect(FixScrolling)
+
+	-- Helper: check if container has any real results
+	local function hasResults(container)
+		if not container then return false end
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("GuiObject")
+			and not child:IsA("UIListLayout")
+			and not child:IsA("UIPadding") then
+				return true
+			end
+		end
+		return false
+	end
+
+	-- Update a ResultStatus label
+	local function updateResultStatus(resultStatus)
+		local parent = resultStatus.Parent
+		local container =
+			parent:FindFirstChild("Content")
+			or parent:FindFirstChild("Results")
+			or parent:FindFirstChild("List")
+			or parent:FindFirstChild("Container")
+
+		if not container then return end
+
+		local function refresh()
+			resultStatus.Visible = not hasResults(container)
+		end
+
+		-- Initial refresh
+		refresh()
+
+		-- Update when results change
+		container.ChildAdded:Connect(function()
+			task.defer(refresh)
+		end)
+
+		container.ChildRemoved:Connect(function()
+			task.defer(refresh)
+		end)
+	end
+
+	-- Initialize all ResultStatus labels
+	for _, descendant in ipairs(Interface:GetDescendants()) do
+		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
+			updateResultStatus(descendant)
+		end
+	end
+end)
+
 if getHui then
 	Interface.Parent = getHui()
 elseif syn and syn.protect_gui then
