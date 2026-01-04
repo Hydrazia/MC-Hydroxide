@@ -167,10 +167,10 @@ Open.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
--- COLLAPSE UI
+-- COLLAPSE UI (FIXED: FULLY HIDE UI)
 Collapse.MouseButton1Click:Connect(function()
+	Base.Visible = false      -- FULL HIDE
 	Base.Active = false
-	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
 
 	Open.Visible = true
 	Open.Active = true
