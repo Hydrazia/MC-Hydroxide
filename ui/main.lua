@@ -255,20 +255,36 @@ task.spawn(function()
 
 	-- find all relevant scrolling frames in the interface
 	for _, desc in ipairs(Interface:GetDescendants()) do
-		if desc:IsA("ScrollingFrame") then
-			if desc:FindFirstChildWhichIsA("UIListLayout") then
-				bindList(desc)
-			end
+		if desc:IsA("ScrollingFrame") and desc:FindFirstChildWhichIsA("UIListLayout") then
+			bindList(desc)
 		end
 	end
 
-	-- also bind any future lists created at runtime (modules cloning templates, etc.)
+	-- also bind any future lists created at runtime
 	Interface.DescendantAdded:Connect(function(desc)
-		if desc:IsA("ScrollingFrame") then
-			if desc:FindFirstChildWhichIsA("UIListLayout") then
-				bindList(desc)
-			end
+		if desc:IsA("ScrollingFrame") and desc:FindFirstChildWhichIsA("UIListLayout") then
+			bindList(desc)
 		end
+	end)
+end)
+
+-- HARD PATCH: Prevent Content frames from resizing (fix scroll glitches)
+task.spawn(function()
+	local function patchContent(frame)
+		if frame.Name == "Content" and frame:IsA("Frame") then
+			frame.AutomaticSize = Enum.AutomaticSize.None
+			frame.Size = UDim2.new(1, 0, 0, 0) -- height driven by CanvasSize only
+		end
+	end
+
+	-- patch existing
+	for _, d in ipairs(Interface:GetDescendants()) do
+		patchContent(d)
+	end
+
+	-- patch future clones
+	Interface.DescendantAdded:Connect(function(d)
+		patchContent(d)
 	end)
 end)
 
