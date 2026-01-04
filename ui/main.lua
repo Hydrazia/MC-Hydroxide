@@ -8,7 +8,7 @@ if oh.Cache["ui/main"] then
 	return Interface
 end
 
-oh.Events = oh.Events or {} -- ensure Events table exists
+oh.Events = oh.Events or {}
 
 import("ui/controls/TabSelector")
 local MessageBox, MessageType = import("ui/controls/MessageBox")
@@ -20,6 +20,7 @@ local ModuleScanner
 local UpvalueScanner
 local ConstantScanner
 
+-- TOUCH STATE
 getgenv().touchPoints = {}
 getgenv().touching = {}
 getgenv().conduct = 0
@@ -27,6 +28,7 @@ getgenv().pressHold = false
 getgenv().mainBase = Interface.Base
 mainBase.Active = true
 
+-- MOUSE IN FRAME
 getgenv().MouseInFrame = function(uiobject)
 	local mouse = game:GetService("Players").LocalPlayer:GetMouse()
 	local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
@@ -34,11 +36,12 @@ getgenv().MouseInFrame = function(uiobject)
 	return (y_cond and x_cond)
 end
 
+-- CLEAN TOUCH SIGNAL
 if signaluis then
 	signaluis:Disconnect()
 end
 
-getgenv().signaluis = UserInput.InputBegan:Connect(function(input, gp)
+getgenv().signaluis = UserInput.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.Touch then
 		conduct += 1
 		local key, Signal = conduct, true
@@ -53,33 +56,27 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input, gp)
 		end)
 
 		Signal = UserInput.InputEnded:Connect(function()
-			for i in pairs(touching) do
-				touching[i] = false
-			end
-
+			for i in pairs(touching) do touching[i] = false end
 			touchPoints[key] = nil
 			conduct -= 1
 			Signal:Disconnect()
-			Signal = nil
 			task.wait()
 			pressHold = false
 		end)
 	end
 end)
 
-local moduleId = { "RemoteSpy", "ClosureSpy", "ScriptScanner", "ModuleScanner", "UpvalueScanner", "ConstantScanner" }
+-- MODULE LOADING
+local moduleId = { "RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","UpvalueScanner","ConstantScanner" }
 
 function moduleError(err)
 	local message
 	if err:find("valid member") then
-		message = "The UI has updated, please rejoin and restart. If you get this message more than once, screenshot this message and report it in the Hydroxide server.\n\n" .. err
+		message = "The UI has updated, please rejoin and restart.\n\n" .. err
 	else
-		message = string.format("Report this error in Hydroxide's server:\n\n%s", err)
+		message = string.format("Report this error:\n\n%s", err)
 	end
-
-	MessageBox.Show("An error has occurred", message, MessageType.OK, function()
-		--Interface:Destroy()
-	end)
+	MessageBox.Show("An error has occurred", message, MessageType.OK, function() end)
 end
 
 xpcall(function()
@@ -93,13 +90,17 @@ end, function(err)
 	moduleError(err)
 end)
 
+-- UI CONSTANTS
 local constants = {
 	opened = UDim2.new(0.5, -325, 0.5, -175),
 	closed = UDim2.new(0.5, -325, 0, -400),
+
+	-- FIXED: fully off-screen
 	reveal = UDim2.new(0.5, -15, 0, 20),
-	conceal = UDim2.new(0.5, -15, 0, -75),
+	conceal = UDim2.new(0.5, -15, -1, 0)
 }
 
+-- UI ELEMENTS
 local Open = Interface.Open
 local Base = Interface.Base
 local Drag = Base.Drag
@@ -114,15 +115,15 @@ function oh.getStatus()
 	return Status.Text:gsub("• Status: ", "")
 end
 
--- enable input objects
+-- ENABLE INPUT
 Open.Active = true
 Base.Active = true
 Drag.Active = true
 Collapse.Active = true
 
+-- DRAGGING
 local dragging, dragStart, startPos
 
--- drag start (mouse + touch, with your multitouch guard)
 Drag.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 		or (input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
@@ -141,7 +142,6 @@ Drag.InputBegan:Connect(function(input)
 	end
 end)
 
--- drag move
 oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
 		or input.UserInputType == Enum.UserInputType.Touch) then
@@ -156,40 +156,39 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
--- open: hide button, show base
+-- OPEN UI
 Open.MouseButton1Click:Connect(function()
 	Open.Visible = false
 	Open.Active = false
-	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15, true)
+	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
 
 	Base.Visible = true
 	Base.Active = true
-	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15, true)
+	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
--- collapse: hide base, show button
+-- COLLAPSE UI
 Collapse.MouseButton1Click:Connect(function()
 	Base.Active = false
-	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15, true)
+	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
 
 	Open.Visible = true
 	Open.Active = true
-	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15, true)
+	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
 end)
 
+-- PARENT UI
 Interface.Name = HttpService:GenerateGUID(false)
+Interface.Parent = getHui and getHui() or CoreGui
 
-if getHui then
-	Interface.Parent = getHui()
-else
-	if syn and syn.protect_gui then
-		syn.protect_gui(Interface)
-	end
+-- FIX: force hide Open button AFTER parenting
+task.defer(function()
+	Open.Visible = false
+	Open.Active = false
+	Open.Position = constants.conceal
+end)
 
-	Interface.Parent = CoreGui
-end
-
--- INITIAL STATE: UI starts OPEN, button hidden, centered
+-- INITIAL STATE
 Base.Visible = true
 Base.Active = true
 Base.Position = constants.opened
@@ -200,50 +199,41 @@ Open.Position = constants.conceal
 
 -- AUTO UPDATE "NO RESULTS FOUND" ACROSS ALL MODULES
 task.spawn(function()
-	-- check if a container actually has visible results
+
 	local function hasResults(container)
 		if not container then return false end
 		for _, child in ipairs(container:GetChildren()) do
 			if child:IsA("GuiObject")
 				and not child:IsA("UIListLayout")
-				and not child:IsA("UIPadding") then
-				if child.Visible ~= false then
-					return true
-				end
+				and not child:IsA("UIPadding")
+				and child.Visible ~= false then
+				return true
 			end
 		end
 		return false
 	end
 
-	-- try to resolve the scrolling container associated with a ResultStatus
 	local function resolveContainer(resultStatus)
 		local parent = resultStatus.Parent
 		if not parent then return nil end
 
-		-- common Hydroxide patterns: Results -> Clip -> Content
 		if parent:FindFirstChild("Results") then
 			local results = parent.Results
-			if results:FindFirstChild("Clip") then
-				local clip = results.Clip
-				if clip:FindFirstChild("Content") then
-					return clip.Content
-				end
+			if results:FindFirstChild("Clip") and results.Clip:FindFirstChild("Content") then
+				return results.Clip.Content
 			end
 		end
 
-		-- parent itself might be Results
 		if parent.Name == "Results" then
 			if parent:FindFirstChild("Clip") and parent.Clip:FindFirstChild("Content") then
 				return parent.Clip.Content
 			end
 		end
 
-		-- generic: direct Content child
 		if parent:FindFirstChild("Content") then
 			return parent.Content
 		end
 
-		-- fallbacks: look for any ScrollingFrame under parent
 		for _, child in ipairs(parent:GetChildren()) do
 			if child:IsA("ScrollingFrame") then
 				return child
@@ -261,25 +251,13 @@ task.spawn(function()
 			resultStatus.Visible = not hasResults(container)
 		end
 
-		-- initial
 		refresh()
 
-		-- update when children change
-		container.ChildAdded:Connect(function()
-			task.defer(refresh)
-		end)
-
-		container.ChildRemoved:Connect(function()
-			task.defer(refresh)
-		end)
-
-		-- update when container visibility changes
-		container:GetPropertyChangedSignal("Visible"):Connect(function()
-			task.defer(refresh)
-		end)
+		container.ChildAdded:Connect(function() task.defer(refresh) end)
+		container.ChildRemoved:Connect(function() task.defer(refresh) end)
+		container:GetPropertyChangedSignal("Visible"):Connect(function() task.defer(refresh) end)
 	end
 
-	-- bind ALL ResultStatus labels in the entire interface
 	for _, d in ipairs(Interface:GetDescendants()) do
 		if d:IsA("TextLabel") and d.Name == "ResultStatus" then
 			bindResultStatus(d)
