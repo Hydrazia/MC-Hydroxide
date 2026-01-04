@@ -20,13 +20,15 @@ local ModuleScanner
 local UpvalueScanner
 local ConstantScanner
 
+-- TOUCH STATE
 getgenv().touchPoints = {}
 getgenv().touching = {}
 getgenv().conduct = 0
 getgenv().pressHold = false
 getgenv().mainBase = Interface.Base
-mainBase.Active = true
+getgenv().mainBase.Active = true
 
+-- MOUSE IN FRAME
 getgenv().MouseInFrame = function(uiobject)
 	local mouse = game:GetService("Players").LocalPlayer:GetMouse()
 	local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
@@ -34,6 +36,7 @@ getgenv().MouseInFrame = function(uiobject)
 	return (y_cond and x_cond)
 end
 
+-- CLEAN TOUCH SIGNAL
 if signaluis then
 	signaluis:Disconnect()
 end
@@ -63,6 +66,7 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input)
 	end
 end)
 
+-- MODULE LOADING
 local moduleId = { "RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","UpvalueScanner","ConstantScanner" }
 
 local function moduleError(err)
@@ -86,15 +90,19 @@ end, function(err)
 	moduleError(err)
 end)
 
+-- UI CONSTANTS
 local constants = {
 	opened = UDim2.new(0.5, -325, 0.5, -175),
 	closed = UDim2.new(0.5, -325, 0, -400),
+
 	reveal = UDim2.new(0.5, -15, 0, 20),
 	conceal = UDim2.new(0.5, -15, -1, 0)
 }
 
+-- GLOBAL COLLAPSE FLAG
 local collapsed = false
 
+-- UI ELEMENTS
 local Open = Interface.Open
 local Base = Interface.Base
 local Drag = Base.Drag
@@ -109,11 +117,13 @@ function oh.getStatus()
 	return Status.Text:gsub("• Status: ", "")
 end
 
+-- ENABLE INPUT
 Open.Active = true
 Base.Active = true
 Drag.Active = true
 Collapse.Active = true
 
+-- DRAGGING
 local dragging, dragStart, startPos
 
 Drag.InputBegan:Connect(function(input)
@@ -148,6 +158,7 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
+-- OPEN UI
 Open.MouseButton1Click:Connect(function()
 	collapsed = false
 
@@ -160,6 +171,7 @@ Open.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
+-- COLLAPSE UI (FULL HIDE)
 Collapse.MouseButton1Click:Connect(function()
 	collapsed = true
 
@@ -171,15 +183,18 @@ Collapse.MouseButton1Click:Connect(function()
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
 end)
 
+-- PARENT UI
 Interface.Name = HttpService:GenerateGUID(false)
 Interface.Parent = getHui and getHui() or CoreGui
 
+-- force hide Open button AFTER parenting
 task.defer(function()
 	Open.Visible = false
 	Open.Active = false
 	Open.Position = constants.conceal
 end)
 
+-- INITIAL STATE
 Base.Visible = true
 Base.Active = true
 Base.Position = constants.opened
@@ -188,6 +203,7 @@ Open.Visible = false
 Open.Active = false
 Open.Position = constants.conceal
 
+-- BLOCK HYDROXIDE FROM FORCING UI VISIBLE
 task.spawn(function()
 	while Interface.Parent do
 		task.wait()
@@ -198,6 +214,11 @@ task.spawn(function()
 	end
 end)
 
+---------------------------------------------------------------------
+-- FULL UI SYNC SYSTEM (C3) - SAFE, NON-GLITCHING
+---------------------------------------------------------------------
+
+-- 1) Global scrolling sync for all ScrollingFrames with UIListLayout
 task.spawn(function()
 	local synced = setmetatable({}, { __mode = "k" })
 
@@ -257,6 +278,7 @@ task.spawn(function()
 	end)
 end)
 
+-- 2) Auto "No Results" visibility across all modules (unchanged logic, just extended)
 task.spawn(function()
 	local function hasResults(container)
 		if not container then return false end
