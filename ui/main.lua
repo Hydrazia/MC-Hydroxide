@@ -95,10 +95,13 @@ local constants = {
 	opened = UDim2.new(0.5, -325, 0.5, -175),
 	closed = UDim2.new(0.5, -325, 0, -400),
 
-	-- FIXED: fully off-screen
+	-- fully off-screen
 	reveal = UDim2.new(0.5, -15, 0, 20),
 	conceal = UDim2.new(0.5, -15, -1, 0)
 }
+
+-- ⭐ GLOBAL COLLAPSE FLAG
+local collapsed = false
 
 -- UI ELEMENTS
 local Open = Interface.Open
@@ -156,8 +159,10 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
--- OPEN UI
+-- ⭐ OPEN UI
 Open.MouseButton1Click:Connect(function()
+	collapsed = false
+
 	Open.Visible = false
 	Open.Active = false
 	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
@@ -167,9 +172,11 @@ Open.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
--- COLLAPSE UI (FIXED: FULLY HIDE UI)
+-- ⭐ COLLAPSE UI (FULL HIDE)
 Collapse.MouseButton1Click:Connect(function()
-	Base.Visible = false      -- FULL HIDE
+	collapsed = true
+
+	Base.Visible = false
 	Base.Active = false
 
 	Open.Visible = true
@@ -181,7 +188,7 @@ end)
 Interface.Name = HttpService:GenerateGUID(false)
 Interface.Parent = getHui and getHui() or CoreGui
 
--- FIX: force hide Open button AFTER parenting
+-- force hide Open button AFTER parenting
 task.defer(function()
 	Open.Visible = false
 	Open.Active = false
@@ -196,6 +203,17 @@ Base.Position = constants.opened
 Open.Visible = false
 Open.Active = false
 Open.Position = constants.conceal
+
+-- ⭐ BLOCK HYDROXIDE FROM FORCING UI VISIBLE
+task.spawn(function()
+	while true do
+		task.wait()
+		if collapsed then
+			Base.Visible = false
+			Base.Active = false
+		end
+	end
+end)
 
 -- AUTO UPDATE "NO RESULTS FOUND" ACROSS ALL MODULES
 task.spawn(function()
