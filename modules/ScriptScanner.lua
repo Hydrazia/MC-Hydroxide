@@ -1,36 +1,68 @@
 local ScriptScanner = {}
 local LocalScript = import("objects/LocalScript")
 
+-- Resolve exploit functions safely
+local getGc = getgc or debug.getgc
+local getSenv = getsenv or getfenv
+local getScriptClosure = getscriptclosure or getScriptClosure or function() return nil end
+local isXClosure = is_synapse_function or isourclosure or isexecutorclosure or function() return false end
+
 local requiredMethods = {
-    ["getGc"] = true,
-    ["getSenv"] = true,
-    ["getProtos"] = true,
-    ["getConstants"] = true,
-    ["getScriptClosure"] = true,
-    ["isXClosure"] = true
+    getGc = true,
+    getSenv = true,
+    getProtos = true,
+    getConstants = true,
+    getScriptClosure = true,
+    isXClosure = true
 }
 
+local function safeGetScriptFromClosure(fn)
+    -- getfenv(fn).script is NOT always safe
+    local ok, env = pcall(getSenv, fn)
+    if not ok or type(env) ~= "table" then
+        return nil
+    end
+
+    local script = rawget(env, "script")
+    if typeof(script) == "Instance" and script:IsA("LocalScript") then
+        return script
+    end
+
+    return nil
+end
+
+local function safeHasClosure(script)
+    local ok, closure = pcall(getScriptClosure, script)
+    return ok and type(closure) == "function"
+end
+
+local function safeHasEnv(script)
+    return pcall(function()
+        local env = getsenv(script)
+        return env ~= nil
+    end)
+end
+
 local function scan(query)
-    local scripts = {}
-    query = query or ""
+    local results = {}
+    local q = tostring(query or ""):lower()
 
-    for _i, v in pairs(getGc()) do
-        if type(v) == "function" and not isXClosure(v) then
-            local script = rawget(getfenv(v), "script")
+    for _, fn in pairs(getGc()) do
+        if type(fn) == "function" and not isXClosure(fn) then
 
-            if typeof(script) == "Instance" and 
-                not scripts[script] and 
-                script:IsA("LocalScript") and 
-                script.Name:lower():find(query) and
-                getScriptClosure(script) and
-                pcall(function() getsenv(script) end)
+            local script = safeGetScriptFromClosure(fn)
+            if script
+                and not results[script]
+                and script.Name:lower():find(q, 1, true)
+                and safeHasClosure(script)
+                and safeHasEnv(script)
             then
-                scripts[script] = LocalScript.new(script)
+                results[script] = LocalScript.new(script)
             end
         end
     end
 
-    return scripts
+    return results
 end
 
 ScriptScanner.RequiredMethods = requiredMethods
