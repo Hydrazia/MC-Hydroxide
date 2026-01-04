@@ -11,153 +11,128 @@ end
 import("ui/controls/TabSelector")
 local MessageBox, MessageType = import("ui/controls/MessageBox")
 
-local RemoteSpy
-local ClosureSpy
-local ScriptScanner
-local ModuleScanner
-local UpvalueScanner
-local ConstantScanner
-
-getgenv().touchPoints = {}
-getgenv().touching = {}
-getgenv().conduct = 0
-getgenv().pressHold = false
 getgenv().mainBase = Interface.Base
 mainBase.Active = true
 
-getgenv().MouseInFrame = function(uiobject)
-	local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-    local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
-    local x_cond = uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
-
-	return (y_cond and x_cond)
-end
-
-if signaluis then
-	signaluis:Disconnect()
-end
-
-getgenv().signaluis = UserInput.InputBegan:Connect(function(input,gp)
-	if (input.UserInputType == Enum.UserInputType.Touch) then
-		conduct += 1
-		local key, Signal = conduct, true
-		touchPoints[key] = input.Position
-		local startClock = os.clock()
-		task.spawn(function()
-			local threshold = 0.4
-			repeat task.wait() until (os.clock()-startClock) > threshold  or not Signal
-			if (os.clock()-startClock) < threshold then return end
-			pressHold = true
-		end)
-		Signal = UserInput.InputEnded:Connect(function()
-			for i, v in pairs(touching) do
-				if v == true then
-					--print(i,v)
-				end
-				touching[i] = false
-			end
-			touchPoints[key] = nil
-			conduct -= 1
-			Signal:Disconnect()
-			Signal = nil
-			task.wait()
-			pressHold = false
-		end)
-	end
-end)
-
-local moduleId = {"RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","UpvalueScanner","ConstantScanner"}
-
-function moduleError(err)
-	local message
-	if err:find("valid member") then
-		message = "The UI has updated, please rejoin and restart. If you get this message more than once, screenshot this message and report it in the Hydroxide server.\n\n" .. err
-	else
-		message = string.format("Report this error in Hydroxide's server:\n\n%s", err)
-	end
-
-	MessageBox.Show("An error has occurred", message, MessageType.OK, function()
-		--Interface:Destroy()
-	end)
-end
-
-xpcall(function()
-	RemoteSpy = import("ui/modules/RemoteSpy");
-	ClosureSpy = import("ui/modules/ClosureSpy");
-	ScriptScanner = import("ui/modules/ScriptScanner");
-	ModuleScanner = import("ui/modules/ModuleScanner");
-	UpvalueScanner = import("ui/modules/UpvalueScanner");
-	ConstantScanner = import("ui/modules/ConstantScanner"); 
-end, function(err)
-	moduleError(err)
-end)
-
+-- Simplified Constants
 local constants = {
 	opened = UDim2.new(0.5, -325, 0.5, -175),
-	closed = UDim2.new(0.5, -325, 0, -400),
+	closed = UDim2.new(0.5, -325, 0, -600),
 	reveal = UDim2.new(0.5, -15, 0, 20),
-	conceal = UDim2.new(0.5, -15, 0, -75)
+	conceal = UDim2.new(0.5, -15, 0, -100)
 }
 
 local Open = Interface.Open
 local Base = Interface.Base
 local Drag = Base.Drag
-local Status = Base.Status
 local Collapse = Drag.Collapse
 
-function oh.setStatus(text)
-	Status.Text = '• Status: ' .. text
+-- 1. FIXING THE SCROLLING GLITCH
+local function ApplyScrollFix(frame)
+	if not frame:IsA("ScrollingFrame") then return end
+	
+	-- Disable Roblox's buggy automatic sizing for custom layouts
+	frame.AutomaticCanvasSize = Enum.AutomaticSize.None
+	frame.ScrollBarThickness = 4
+	frame.ScrollingDirection = Enum.ScrollingDirection.Y
+	
+	local layout = frame:FindFirstChildWhichIsA("UIListLayout") or frame:FindFirstChildWhichIsA("UIGridLayout")
+	
+	if layout then
+		local function update()
+			-- Force canvas size based on strict pixel math, not scale
+			local contentSize = layout.AbsoluteContentSize
+			frame.CanvasSize = UDim2.new(0, 0, 0, contentSize.Y + 10)
+		end
+		
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+		update()
+	end
 end
 
-function oh.getStatus()
-	return Status.Text:gsub('• Status: ', '')
+-- Monitor for all present and future scrolling frames
+Interface.DescendantAdded:Connect(ApplyScrollFix)
+for _, v in pairs(Interface:GetDescendants()) do ApplyScrollFix(v) end
+
+-- 2. IMPROVED TOGGLE LOGIC (No glitching on start)
+Base.Visible = true
+Base.Position = constants.opened
+Open.Visible = false
+Open.Position = constants.conceal
+
+local function toggleUI(showMain)
+	if showMain then
+		Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15, true)
+		task.wait(0.1)
+		Open.Visible = false
+		Base.Visible = true
+		Base:TweenPosition(constants.opened, "Out", "Quad", 0.15, true)
+	else
+		Base:TweenPosition(constants.closed, "Out", "Quad", 0.15, true)
+		task.wait(0.1)
+		Base.Visible = false
+		Open.Visible = true
+		Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15, true)
+	end
 end
 
+Open.MouseButton1Click:Connect(function() toggleUI(true) end)
+Collapse.MouseButton1Click:Connect(function() toggleUI(false) end)
+
+-- 3. CLEAN DRAGGING (Removed unnecessary touch conduct logic)
 local dragging, dragStart, startPos
-
 Drag.InputBegan:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
-		local dragEnded 
-
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = true
 		dragStart = input.Position
 		startPos = Base.Position
-
-		dragEnded = input.Changed:Connect(function()
+		
+		local connection
+		connection = input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
-				dragEnded:Disconnect()
+				connection:Disconnect()
 			end
 		end)
 	end
 end)
 
-oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+UserInput.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 		local delta = input.Position - dragStart
 		Base.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
 end)
 
-Open.MouseButton1Click:Connect(function()
-	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
-	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
-end)
-
-Collapse.MouseButton1Click:Connect(function()
-	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
-	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
-end)
-
-Interface.Name = HttpService:GenerateGUID(false)
-if getHui then
-	Interface.Parent = CoreGui or getHui()
-else
-	if syn then
-		--syn.protect_gui(Interface)
+-- 4. RESULT STATUS (Cleaner check)
+task.spawn(function()
+	local pages = Base:WaitForChild("Body", 5):WaitForChild("Pages", 5)
+	
+	local function updateStatus(label)
+		local container = label.Parent:FindFirstChild("Content") or label.Parent:FindFirstChild("Results")
+		if container then
+			local function refresh()
+				local count = 0
+				for _, c in pairs(container:GetChildren()) do
+					if not c:IsA("UIComponent") then count += 1 end
+				end
+				label.Visible = (count == 0)
+			end
+			container.ChildAdded:Connect(refresh)
+			container.ChildRemoved:Connect(refresh)
+			refresh()
+		end
 	end
 
-	Interface.Parent = CoreGui
-end
+	for _, v in pairs(Interface:GetDescendants()) do
+		if v.Name == "ResultStatus" then updateStatus(v) end
+	end
+end)
+
+-- 5. PARENTING & SECURITY
+Interface.Name = HttpService:GenerateGUID(false)
+local parentTarget = (gethui and gethui()) or (syn and syn.protect_gui and CoreGui) or CoreGui
+if syn and syn.protect_gui then syn.protect_gui(Interface) end
+Interface.Parent = parentTarget
 
 return Interface
