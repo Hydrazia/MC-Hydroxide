@@ -139,13 +139,24 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
+-- open: hide button, show base
 Open.MouseButton1Click:Connect(function()
+	Open.Active = false
+	Open.Visible = false
 	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
+
+	Base.Visible = true
+	Base.Active = true
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
+-- collapse: hide base, show button
 Collapse.MouseButton1Click:Connect(function()
+	Base.Active = false
 	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
+
+	Open.Visible = true
+	Open.Active = true
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
 end)
 
@@ -159,5 +170,55 @@ else
 
 	Interface.Parent = CoreGui
 end
+
+-- "NO FOUND" / "NO RESULTS" AUTO-UPDATE
+task.spawn(function()
+	-- helper: does this container actually have results?
+	local function hasResults(container)
+		if not container then return false end
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("GuiObject")
+				and not child:IsA("UIListLayout")
+				and not child:IsA("UIPadding") then
+				return true
+			end
+		end
+		return false
+	end
+
+	-- attach live updater to a ResultStatus label
+	local function bindResultStatus(resultStatus)
+		local parent = resultStatus.Parent
+		local container =
+			parent:FindFirstChild("Content")
+			or parent:FindFirstChild("Results")
+			or parent:FindFirstChild("List")
+			or parent:FindFirstChild("Container")
+
+		if not container then return end
+
+		local function refresh()
+			resultStatus.Visible = not hasResults(container)
+		end
+
+		-- initial check
+		refresh()
+
+		-- update when children change
+		container.ChildAdded:Connect(function()
+			task.defer(refresh)
+		end)
+		container.ChildRemoved:Connect(function()
+			task.defer(refresh)
+		end)
+	end
+
+	-- bind all ResultStatus labels in the interface
+	for _, descendant in ipairs(Interface:GetDescendants()) do
+		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
+			bindResultStatus(descendant)
+		end
+	end
+end)
 
 return Interface
