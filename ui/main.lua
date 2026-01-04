@@ -52,7 +52,7 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input,gp)
 		Signal = UserInput.InputEnded:Connect(function()
 			for i, v in pairs(touching) do
 				if v == true then
-					--print(i,v)
+					
 				end
 				touching[i] = false
 			end
@@ -71,14 +71,12 @@ local moduleId = {"RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","Upva
 function moduleError(err)
 	local message
 	if err:find("valid member") then
-		message = "The UI has updated, please rejoin and restart. If you get this message more than once, screenshot this message and report it in the Hydroxide server.\n\n" .. err
+		message = "The UI has updated, please rejoin and restart.\n\n" .. err
 	else
-		message = string.format("Report this error in Hydroxide's server:\n\n%s", err)
+		message = string.format("Error:\n\n%s", err)
 	end
 
-	MessageBox.Show("An error has occurred", message, MessageType.OK, function()
-		--Interface:Destroy()
-	end)
+	MessageBox.Show("An error has occurred", message, MessageType.OK, function() end)
 end
 
 xpcall(function()
@@ -94,9 +92,9 @@ end)
 
 local constants = {
 	opened = UDim2.new(0.5, -325, 0.5, -175),
-	closed = UDim2.new(0.5, -325, 0, -400),
+	closed = UDim2.new(0.5, -325, 0, -600),
 	reveal = UDim2.new(0.5, -15, 0, 20),
-	conceal = UDim2.new(0.5, -15, 0, -75)
+	conceal = UDim2.new(0.5, -15, 0, -100)
 }
 
 local Open = Interface.Open
@@ -113,10 +111,18 @@ function oh.getStatus()
 	return Status.Text:gsub('• Status: ', '')
 end
 
+Open.Active = false
+Drag.Active = true
+Collapse.Active = true
+Base.Active = true
+
 local dragging, dragStart, startPos
 
 Drag.InputBegan:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1 or (input.UserInputType == Enum.UserInputType.Touch and conduct == 0)) then
+	-- fixed parentheses for proper PC + touch behavior
+	if (input.UserInputType == Enum.UserInputType.MouseButton1) 
+		or (input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
+
 		local dragEnded 
 
 		dragging = true
@@ -140,35 +146,133 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 end)
 
 Open.MouseButton1Click:Connect(function()
-	Base.Active = true
+	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15, true)
+	task.wait(0.1)
+    
 	Open.Visible = false
 	Open.Active = false
-
-	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
-	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
+    
+	-- keep Base visible and ensure it can receive input when opened
+	Base.Active = true
+	-- Base.Visible stays true; never set to false to avoid UI/log issues
+	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15, true)
 end)
 
 Collapse.MouseButton1Click:Connect(function()
-	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
-
-	task.delay(0.16, function()
-		Base.Active = false
-		Open.Visible = true
-		Open.Active = true
-	 end)
-
-	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
+	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15, true)
+	task.wait(0.15) 
+    
+	-- do NOT set Base.Visible = false; this is the core UI fix
+	Base.Active = false  -- disable interaction while collapsed
+    
+	Open.Visible = true
+	Open.Active = true
+	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15, true)
 end)
+
+task.spawn(function()
+	local function FixScrolling(obj)
+		if obj:IsA("ScrollingFrame") then
+			obj.AutomaticCanvasSize = Enum.AutomaticSize.None
+			obj.ScrollBarThickness = 4
+			
+			local layout = obj:FindFirstChildWhichIsA("UIGridStyleLayout")
+			if layout then
+				local function update()
+					obj.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+				end
+				layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+				update()
+			end
+		end
+	end
+
+	for _, v in pairs(Interface:GetDescendants()) do
+		FixScrolling(v)
+	end
+	
+	Interface.DescendantAdded:Connect(FixScrolling)
+
+	local success, pages = pcall(function()
+		return Base:WaitForChild("Body", 5):WaitForChild("Pages", 5)
+	end)
+	
+	if not success or not pages then
+		return
+	end
+	
+	local function hasResults(resultsContainer)
+		if not resultsContainer then return false end
+		local childCount = 0
+		for _, child in pairs(resultsContainer:GetChildren()) do
+			if not child:IsA("UIListLayout") and 
+			   not child:IsA("UIPadding") and 
+			   not child:IsA("UICorner") and
+			   not child:IsA("UIGridLayout") and
+			   not child:IsA("UISizeConstraint") then
+				childCount = childCount + 1
+			end
+		end
+		return childCount > 0
+	end
+	
+	local function updateResultStatus(resultStatus)
+		if not resultStatus or not resultStatus.Parent then return end
+		resultStatus.Active = false
+		
+		local resultsContainer = resultStatus.Parent:FindFirstChild("Content") 
+			or resultStatus.Parent:FindFirstChild("Results")
+			or resultStatus.Parent:FindFirstChild("List")
+			or resultStatus.Parent:FindFirstChild("Container")
+		
+		if resultsContainer then
+			resultsContainer.Active = true
+			
+			local function updateVisibility()
+				local hasContent = hasResults(resultsContainer)
+				resultStatus.Visible = not hasContent
+			end
+			
+			updateVisibility()
+			resultsContainer.ChildAdded:Connect(function() task.wait(0.05) updateVisibility() end)
+			resultsContainer.ChildRemoved:Connect(function() task.wait(0.05) updateVisibility() end)
+		else
+			resultStatus.Visible = true
+		end
+	end
+	
+	for _, descendant in pairs(Interface:GetDescendants()) do
+		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
+			updateResultStatus(descendant)
+		end
+	end
+end)
+
+local originalExit = oh.Exit
+oh.Exit = function()
+	if oh.Events.ResultStatusConnections then
+		for _, connection in pairs(oh.Events.ResultStatusConnections) do
+			pcall(function() connection:Disconnect() end)
+		end
+		oh.Events.ResultStatusConnections = nil
+	end
+	if originalExit then originalExit() end
+end
 
 Interface.Name = HttpService:GenerateGUID(false)
 if getHui then
-	Interface.Parent = CoreGui or getHui()
+	Interface.Parent = getHui()
+elseif syn and syn.protect_gui then
+	syn.protect_gui(Interface)
+	Interface.Parent = CoreGui
 else
-	if syn then
-		--syn.protect_gui(Interface)
-	end
-
 	Interface.Parent = CoreGui
 end
+
+Base.Visible = true
+Base.Position = constants.opened
+Open.Visible = false 
+Open.Active = false
+Open.Position = constants.conceal
 
 return Interface
