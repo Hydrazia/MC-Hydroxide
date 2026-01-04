@@ -158,8 +158,35 @@ Open.MouseButton1Click:Connect(function()
 	Open.Active = false
 
 	Base.Active = true
-	-- Base.Visible stays TRUE always (Fix A)
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15, true)
+
+	-- FASTEST POSSIBLE "NO RESULTS FOUND" FIX
+	task.defer(function()
+		for _, descendant in ipairs(Interface:GetDescendants()) do
+			if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
+				
+				local parent = descendant.Parent
+				local container =
+					parent:FindFirstChild("Content")
+					or parent:FindFirstChild("Results")
+					or parent:FindFirstChild("List")
+					or parent:FindFirstChild("Container")
+
+				if container then
+					local hasContent = false
+					for _, child in ipairs(container:GetChildren()) do
+						if child:IsA("GuiObject")
+						and not child:IsA("UIListLayout")
+						and not child:IsA("UIPadding") then
+							hasContent = true
+							break
+						end
+					end
+					descendant.Visible = not hasContent
+				end
+			end
+		end
+	end)
 end)
 
 Collapse.MouseButton1Click:Connect(function()
