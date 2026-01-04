@@ -40,7 +40,7 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input,gp)
 	if (input.UserInputType == Enum.UserInputType.Touch) then
 		conduct += 1
 		local key, Signal = conduct, true
-		touchPoints[key] = input.Position
+        touchPoints[key] = input.Position
 		local startClock = os.clock()
 		task.spawn(function()
 			local threshold = 0.4
@@ -132,9 +132,23 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
+-- FIX A APPLIED BELOW (ONLY CHANGE)
+
 local function openUI()
 	Base.Active = true
+
+	Base.BackgroundTransparency = 0
+	for _,v in ipairs(Base:GetDescendants()) do
+		if v:IsA("GuiObject") then
+			if v:IsA("TextLabel") or v:IsA("TextButton") then
+				v.TextTransparency = 0
+			end
+			v.BackgroundTransparency = 0
+		end
+	end
+
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
+
 	Open.Visible = false
 	Open.Active = false
 	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
@@ -143,12 +157,26 @@ end
 local function collapseUI()
 	Open.Visible = true
 	Open.Active = true
+
 	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
+
 	task.delay(0.16, function()
 		Base.Active = false
+		Base.BackgroundTransparency = 1
+		for _,v in ipairs(Base:GetDescendants()) do
+			if v:IsA("GuiObject") then
+				if v:IsA("TextLabel") or v:IsA("TextButton") then
+					v.TextTransparency = 1
+				end
+				v.BackgroundTransparency = 1
+			end
+		end
 	end)
+
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
 end
+
+-- END FIX A
 
 Open.MouseButton1Click:Connect(openUI)
 Collapse.MouseButton1Click:Connect(collapseUI)
