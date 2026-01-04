@@ -288,6 +288,30 @@ task.spawn(function()
 	end)
 end)
 
+-- HARD PATCH: Prevent list items from collapsing (fix text overlap / upvalues)
+task.spawn(function()
+	local function patchItem(frame)
+		if frame:IsA("Frame") and frame:FindFirstChildWhichIsA("TextLabel") then
+			frame.AutomaticSize = Enum.AutomaticSize.None
+			local h = frame.AbsoluteSize.Y
+			if h <= 0 then
+				h = 24 -- fallback minimum row height
+			end
+			frame.Size = UDim2.new(1, 0, 0, h)
+		end
+	end
+
+	-- patch existing items
+	for _, d in ipairs(Interface:GetDescendants()) do
+		patchItem(d)
+	end
+
+	-- patch future items (Upvalues, Constants, etc.)
+	Interface.DescendantAdded:Connect(function(d)
+		patchItem(d)
+	end)
+end)
+
 -- AUTO UPDATE "NO RESULTS FOUND" ACROSS ALL MODULES
 task.spawn(function()
 
