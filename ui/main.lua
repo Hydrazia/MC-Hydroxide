@@ -168,14 +168,27 @@ task.spawn(function()
 	local function FixScrolling(obj)
 		if obj:IsA("ScrollingFrame") then
 			obj.AutomaticCanvasSize = Enum.AutomaticSize.None
-			obj.ScrollBarThickness = 4
+			obj.ClipsDescendants = true
 			
 			local layout = obj:FindFirstChildWhichIsA("UIGridStyleLayout")
 			if layout then
 				local function update()
-					obj.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+					local contentSize = layout.AbsoluteContentSize
+					obj.CanvasSize = UDim2.new(0, 0, 0, contentSize.Y + 15)
 				end
+				
 				layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+				
+				obj.DescendantAdded:Connect(function(child)
+					if child:IsA("GuiObject") then
+						if child.Size.Y.Scale > 0 then
+							local absSize = child.AbsoluteSize.Y
+							child.Size = UDim2.new(child.Size.X.Scale, child.Size.X.Offset, 0, absSize > 0 and absSize or 25)
+						end
+					end
+					update()
+				end)
+				
 				update()
 			end
 		end
