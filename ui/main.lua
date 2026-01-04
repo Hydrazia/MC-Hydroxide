@@ -100,21 +100,6 @@ local Drag = Base.Drag
 local Status = Base.Status
 local Collapse = Drag.Collapse
 
-local viewport = workspace.CurrentCamera.ViewportSize
-
-local function autoScale()
-	local sizeX = math.clamp(viewport.X, 600, 1600)
-	local sizeY = math.clamp(viewport.Y, 300, 1000)
-	Base.Size = UDim2.new(0, sizeX * 0.55, 0, sizeY * 0.45)
-end
-
-autoScale()
-
-workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-	viewport = workspace.CurrentCamera.ViewportSize
-	autoScale()
-end)
-
 function oh.setStatus(text)
 	Status.Text = '• Status: ' .. text
 end
@@ -126,7 +111,7 @@ end
 local dragging, dragStart, startPos
 
 Drag.InputBegan:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1 or (input.UserInputType == Enum.UserInputType.Touch and conduct == 0)) then
+	if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
 		local dragEnded 
 		dragging = true
 		dragStart = input.Position
@@ -150,8 +135,8 @@ end)
 local function openUI()
 	Base.Active = true
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
-	Open.Active = false
 	Open.Visible = false
+	Open.Active = false
 	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
 end
 
