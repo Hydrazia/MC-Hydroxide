@@ -20,7 +20,6 @@ local ModuleScanner
 local UpvalueScanner
 local ConstantScanner
 
--- TOUCH STATE
 getgenv().touchPoints = {}
 getgenv().touching = {}
 getgenv().conduct = 0
@@ -28,7 +27,6 @@ getgenv().pressHold = false
 getgenv().mainBase = Interface.Base
 mainBase.Active = true
 
--- MOUSE IN FRAME
 getgenv().MouseInFrame = function(uiobject)
 	local mouse = game:GetService("Players").LocalPlayer:GetMouse()
 	local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
@@ -36,7 +34,6 @@ getgenv().MouseInFrame = function(uiobject)
 	return (y_cond and x_cond)
 end
 
--- CLEAN TOUCH SIGNAL
 if signaluis then
 	signaluis:Disconnect()
 end
@@ -66,7 +63,6 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input)
 	end
 end)
 
--- MODULE LOADING
 local moduleId = { "RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","UpvalueScanner","ConstantScanner" }
 
 local function moduleError(err)
@@ -90,20 +86,15 @@ end, function(err)
 	moduleError(err)
 end)
 
--- UI CONSTANTS
 local constants = {
 	opened = UDim2.new(0.5, -325, 0.5, -175),
 	closed = UDim2.new(0.5, -325, 0, -400),
-
-	-- fully off-screen
 	reveal = UDim2.new(0.5, -15, 0, 20),
 	conceal = UDim2.new(0.5, -15, -1, 0)
 }
 
--- GLOBAL COLLAPSE FLAG
 local collapsed = false
 
--- UI ELEMENTS
 local Open = Interface.Open
 local Base = Interface.Base
 local Drag = Base.Drag
@@ -118,13 +109,11 @@ function oh.getStatus()
 	return Status.Text:gsub("• Status: ", "")
 end
 
--- ENABLE INPUT
 Open.Active = true
 Base.Active = true
 Drag.Active = true
 Collapse.Active = true
 
--- DRAGGING
 local dragging, dragStart, startPos
 
 Drag.InputBegan:Connect(function(input)
@@ -159,7 +148,6 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
--- OPEN UI
 Open.MouseButton1Click:Connect(function()
 	collapsed = false
 
@@ -172,7 +160,6 @@ Open.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
--- COLLAPSE UI (FULL HIDE)
 Collapse.MouseButton1Click:Connect(function()
 	collapsed = true
 
@@ -184,18 +171,15 @@ Collapse.MouseButton1Click:Connect(function()
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
 end)
 
--- PARENT UI
 Interface.Name = HttpService:GenerateGUID(false)
 Interface.Parent = getHui and getHui() or CoreGui
 
--- force hide Open button AFTER parenting
 task.defer(function()
 	Open.Visible = false
 	Open.Active = false
 	Open.Position = constants.conceal
 end)
 
--- INITIAL STATE
 Base.Visible = true
 Base.Active = true
 Base.Position = constants.opened
@@ -204,7 +188,6 @@ Open.Visible = false
 Open.Active = false
 Open.Position = constants.conceal
 
--- BLOCK HYDROXIDE FROM FORCING UI VISIBLE
 task.spawn(function()
 	while Interface.Parent do
 		task.wait()
@@ -215,11 +198,20 @@ task.spawn(function()
 	end
 end)
 
--- UNIVERSAL LIST SYNC (fix overlap / clipping / bad scrolling)
 task.spawn(function()
 	local synced = setmetatable({}, { __mode = "k" })
 
-	local function bindList(scrolling)
+	local function getPaddingY(scrolling)
+		local pad = scrolling:FindFirstChildWhichIsA("UIPadding")
+		if not pad then
+			return 0
+		end
+		local top = pad.PaddingTop.Offset
+		local bottom = pad.PaddingBottom.Offset
+		return (top or 0) + (bottom or 0)
+	end
+
+	local function bindScrollingFrame(scrolling)
 		if synced[scrolling] then return end
 		synced[scrolling] = true
 
@@ -228,20 +220,14 @@ task.spawn(function()
 
 		local function resize()
 			if not scrolling.Parent then return end
-			local size = layout.AbsoluteContentSize
-			local padding = 0
-
-			local paddingObj = scrolling:FindFirstChildWhichIsA("UIPadding")
-			if paddingObj then
-				local top = paddingObj.PaddingTop.Offset
-				local bottom = paddingObj.PaddingBottom.Offset
-				padding = (top or 0) + (bottom or 0)
-			end
-
-			scrolling.CanvasSize = UDim2.new(0, 0, 0, size.Y + padding)
+			local sizeY = layout.AbsoluteContentSize.Y
+			local paddingY = getPaddingY(scrolling)
+			scrolling.CanvasSize = UDim2.new(0, 0, 0, sizeY + paddingY)
 		end
 
-		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			task.defer(resize)
+		end)
 
 		scrolling.ChildAdded:Connect(function(child)
 			if child:IsA("GuiObject") then
@@ -258,68 +244,20 @@ task.spawn(function()
 		resize()
 	end
 
-	for _, desc in ipairs(Interface:GetDescendants()) do
-		if desc:IsA("ScrollingFrame") and desc:FindFirstChildWhichIsA("UIListLayout") then
-			bindList(desc)
-		end
-	end
-
-	Interface.DescendantAdded:Connect(function(desc)
-		if desc:IsA("ScrollingFrame") and desc:FindFirstChildWhichIsA("UIListLayout") then
-			bindList(desc)
-		end
-	end)
-end)
-
--- HARD PATCH: Prevent Content frames from resizing (fix scroll glitches)
-task.spawn(function()
-	local function patchContent(frame)
-		if frame:IsA("Frame") and frame.Name == "Content" then
-			frame.AutomaticSize = Enum.AutomaticSize.None
-			frame.Size = UDim2.new(1, 0, 0, 0) -- height driven by CanvasSize only
-		end
-	end
-
 	for _, d in ipairs(Interface:GetDescendants()) do
-		patchContent(d)
+		if d:IsA("ScrollingFrame") and d:FindFirstChildWhichIsA("UIListLayout") then
+			bindScrollingFrame(d)
+		end
 	end
 
 	Interface.DescendantAdded:Connect(function(d)
-		patchContent(d)
-	end)
-end)
-
--- HARD PATCH: Prevent list items from collapsing (fix text overlap / upvalues)
-task.spawn(function()
-	local function patchItem(frame)
-		if not frame:IsA("Frame") then return end
-		-- Heuristic: row-like frames inside Content/Results with text
-		local parent = frame.Parent
-		if not parent or not parent:IsA("GuiObject") then return end
-
-		local hasText = frame:FindFirstChildWhichIsA("TextLabel") or frame:FindFirstChildWhichIsA("TextButton")
-		if not hasText then return end
-
-		frame.AutomaticSize = Enum.AutomaticSize.None
-		local h = frame.AbsoluteSize.Y
-		if h <= 0 then
-			h = 24
+		if d:IsA("ScrollingFrame") and d:FindFirstChildWhichIsA("UIListLayout") then
+			bindScrollingFrame(d)
 		end
-		frame.Size = UDim2.new(1, 0, 0, h)
-	end
-
-	for _, d in ipairs(Interface:GetDescendants()) do
-		patchItem(d)
-	end
-
-	Interface.DescendantAdded:Connect(function(d)
-		patchItem(d)
 	end)
 end)
 
--- AUTO UPDATE "NO RESULTS FOUND" ACROSS ALL MODULES
 task.spawn(function()
-
 	local function hasResults(container)
 		if not container then return false end
 		for _, child in ipairs(container:GetChildren()) do
@@ -383,6 +321,12 @@ task.spawn(function()
 			bindResultStatus(d)
 		end
 	end
+
+	Interface.DescendantAdded:Connect(function(d)
+		if d:IsA("TextLabel") and d.Name == "ResultStatus" then
+			bindResultStatus(d)
+		end
+	end)
 end)
 
 return Interface
