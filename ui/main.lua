@@ -165,24 +165,28 @@ Collapse.MouseButton1Click:Connect(function()
 end)
 
 task.spawn(function()
-	-- SCROLLING FIX: Auto-Apply AutomaticCanvasSize to all ScrollingFrames
 	local function FixScrolling(obj)
 		if obj:IsA("ScrollingFrame") then
-			obj.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			obj.CanvasSize = UDim2.new(0, 0, 0, 0)
-			obj.ScrollBarThickness = 6 -- Ensure scrollbar is thick enough to see
+			obj.AutomaticCanvasSize = Enum.AutomaticSize.None
+			obj.ScrollBarThickness = 4
+			
+			local layout = obj:FindFirstChildWhichIsA("UIGridStyleLayout")
+			if layout then
+				local function update()
+					obj.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+				end
+				layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+				update()
+			end
 		end
 	end
 
-	-- Apply to existing
 	for _, v in pairs(Interface:GetDescendants()) do
 		FixScrolling(v)
 	end
 	
-	-- Apply to new (dynamically added tabs/lists)
 	Interface.DescendantAdded:Connect(FixScrolling)
 
-	-- EXISTING RESULT STATUS LOGIC
 	local success, pages = pcall(function()
 		return Base:WaitForChild("Body", 5):WaitForChild("Pages", 5)
 	end)
@@ -193,7 +197,6 @@ task.spawn(function()
 	
 	local function hasResults(resultsContainer)
 		if not resultsContainer then return false end
-		
 		local childCount = 0
 		for _, child in pairs(resultsContainer:GetChildren()) do
 			if not child:IsA("UIListLayout") and 
@@ -204,16 +207,12 @@ task.spawn(function()
 				childCount = childCount + 1
 			end
 		end
-		
 		return childCount > 0
 	end
 	
 	local function updateResultStatus(resultStatus)
 		if not resultStatus or not resultStatus.Parent then return end
-		
-		pcall(function()
-			resultStatus.Active = false
-		end)
+		resultStatus.Active = false
 		
 		local resultsContainer = resultStatus.Parent:FindFirstChild("Content") 
 			or resultStatus.Parent:FindFirstChild("Results")
@@ -221,89 +220,37 @@ task.spawn(function()
 			or resultStatus.Parent:FindFirstChild("Container")
 		
 		if resultsContainer then
-			-- Ensure container is visible and scrolling is handled
-			pcall(function()
-				resultsContainer.Active = true
-				if resultsContainer:IsA("ScrollingFrame") then
-					resultsContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
-					resultsContainer.CanvasSize = UDim2.new(0,0,0,0)
-				end
-			end)
+			resultsContainer.Active = true
 			
 			local function updateVisibility()
-				pcall(function()
-					local hasContent = hasResults(resultsContainer)
-					resultStatus.Visible = not hasContent
-				end)
+				local hasContent = hasResults(resultsContainer)
+				resultStatus.Visible = not hasContent
 			end
 			
 			updateVisibility()
-			
-			local addedConnection = resultsContainer.ChildAdded:Connect(function()
-				task.wait(0.05)
-				updateVisibility()
-			end)
-			
-			local removedConnection = resultsContainer.ChildRemoved:Connect(function()
-				task.wait(0.05)
-				updateVisibility()
-			end)
-			
-			if not oh.Events.ResultStatusConnections then
-				oh.Events.ResultStatusConnections = {}
-			end
-			
-			table.insert(oh.Events.ResultStatusConnections, addedConnection)
-			table.insert(oh.Events.ResultStatusConnections, removedConnection)
+			resultsContainer.ChildAdded:Connect(function() task.wait(0.05) updateVisibility() end)
+			resultsContainer.ChildRemoved:Connect(function() task.wait(0.05) updateVisibility() end)
 		else
-			pcall(function()
-				resultStatus.Visible = true
-			end)
+			resultStatus.Visible = true
 		end
 	end
 	
 	for _, descendant in pairs(Interface:GetDescendants()) do
 		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
-			pcall(function()
-				descendant.Active = false
-				updateResultStatus(descendant)
-			end)
+			updateResultStatus(descendant)
 		end
 	end
-	
-	Interface.DescendantAdded:Connect(function(descendant)
-		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
-			task.wait(0.1)
-			pcall(function()
-				descendant.Active = false
-				updateResultStatus(descendant)
-			end)
-		end
-		
-		if descendant:IsA("GuiButton") or descendant:IsA("TextButton") or 
-		   descendant:IsA("ImageButton") or descendant:IsA("Frame") or 
-		   descendant:IsA("ScrollingFrame") or descendant:IsA("TextBox") then
-			pcall(function()
-				descendant.Active = true
-			end)
-		end
-	end)
 end)
 
 local originalExit = oh.Exit
 oh.Exit = function()
 	if oh.Events.ResultStatusConnections then
 		for _, connection in pairs(oh.Events.ResultStatusConnections) do
-			pcall(function()
-				connection:Disconnect()
-			end)
+			pcall(function() connection:Disconnect() end)
 		end
 		oh.Events.ResultStatusConnections = nil
 	end
-	
-	if originalExit then
-		originalExit()
-	end
+	if originalExit then originalExit() end
 end
 
 Interface.Name = HttpService:GenerateGUID(false)
@@ -318,7 +265,6 @@ end
 
 Base.Visible = true
 Base.Position = constants.opened
-
 Open.Visible = false 
 Open.Active = false
 Open.Position = constants.conceal
