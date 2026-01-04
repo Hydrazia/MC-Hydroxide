@@ -206,7 +206,7 @@ Open.Position = constants.conceal
 
 -- BLOCK HYDROXIDE FROM FORCING UI VISIBLE
 task.spawn(function()
-	while true do
+	while Interface.Parent do
 		task.wait()
 		if collapsed then
 			Base.Visible = false
@@ -217,12 +217,17 @@ end)
 
 -- UNIVERSAL LIST SYNC (fix overlap / clipping / bad scrolling)
 task.spawn(function()
-	-- auto-resize any scrolling frame that uses a UIListLayout
+	local synced = setmetatable({}, { __mode = "k" })
+
 	local function bindList(scrolling)
+		if synced[scrolling] then return end
+		synced[scrolling] = true
+
 		local layout = scrolling:FindFirstChildWhichIsA("UIListLayout")
 		if not layout then return end
 
 		local function resize()
+			if not scrolling.Parent then return end
 			local size = layout.AbsoluteContentSize
 			local padding = 0
 
@@ -253,14 +258,12 @@ task.spawn(function()
 		resize()
 	end
 
-	-- find all relevant scrolling frames in the interface
 	for _, desc in ipairs(Interface:GetDescendants()) do
 		if desc:IsA("ScrollingFrame") and desc:FindFirstChildWhichIsA("UIListLayout") then
 			bindList(desc)
 		end
 	end
 
-	-- also bind any future lists created at runtime
 	Interface.DescendantAdded:Connect(function(desc)
 		if desc:IsA("ScrollingFrame") and desc:FindFirstChildWhichIsA("UIListLayout") then
 			bindList(desc)
@@ -271,18 +274,16 @@ end)
 -- HARD PATCH: Prevent Content frames from resizing (fix scroll glitches)
 task.spawn(function()
 	local function patchContent(frame)
-		if frame.Name == "Content" and frame:IsA("Frame") then
+		if frame:IsA("Frame") and frame.Name == "Content" then
 			frame.AutomaticSize = Enum.AutomaticSize.None
 			frame.Size = UDim2.new(1, 0, 0, 0) -- height driven by CanvasSize only
 		end
 	end
 
-	-- patch existing
 	for _, d in ipairs(Interface:GetDescendants()) do
 		patchContent(d)
 	end
 
-	-- patch future clones
 	Interface.DescendantAdded:Connect(function(d)
 		patchContent(d)
 	end)
@@ -291,22 +292,26 @@ end)
 -- HARD PATCH: Prevent list items from collapsing (fix text overlap / upvalues)
 task.spawn(function()
 	local function patchItem(frame)
-		if frame:IsA("Frame") and frame:FindFirstChildWhichIsA("TextLabel") then
-			frame.AutomaticSize = Enum.AutomaticSize.None
-			local h = frame.AbsoluteSize.Y
-			if h <= 0 then
-				h = 24 -- fallback minimum row height
-			end
-			frame.Size = UDim2.new(1, 0, 0, h)
+		if not frame:IsA("Frame") then return end
+		-- Heuristic: row-like frames inside Content/Results with text
+		local parent = frame.Parent
+		if not parent or not parent:IsA("GuiObject") then return end
+
+		local hasText = frame:FindFirstChildWhichIsA("TextLabel") or frame:FindFirstChildWhichIsA("TextButton")
+		if not hasText then return end
+
+		frame.AutomaticSize = Enum.AutomaticSize.None
+		local h = frame.AbsoluteSize.Y
+		if h <= 0 then
+			h = 24
 		end
+		frame.Size = UDim2.new(1, 0, 0, h)
 	end
 
-	-- patch existing items
 	for _, d in ipairs(Interface:GetDescendants()) do
 		patchItem(d)
 	end
 
-	-- patch future items (Upvalues, Constants, etc.)
 	Interface.DescendantAdded:Connect(function(d)
 		patchItem(d)
 	end)
