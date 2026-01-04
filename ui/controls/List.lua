@@ -1,5 +1,6 @@
 local UserInput = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local List = {}
 local ListButton = {}
@@ -22,27 +23,20 @@ function List.new(instance, multiClick)
     layout.Padding = UDim.new(0, 5)
     layout.Parent = instance
 
-    instance.ChildAdded:Connect(function()
-        task.defer(function()
-            list:Recalculate()
-        end)
-    end)
-
-    instance.ChildRemoved:Connect(function()
-        task.defer(function()
-            list:Recalculate()
-        end)
-    end)
-
+    list.Layout = layout
     list.Buttons = {}
     list.Instance = instance
+    list.MultiClickEnabled = multiClick
     list.Clear = List.clear
     list.Recalculate = List.recalculate
     list.BindContextMenu = List.bindContextMenu
     list.BindContextMenuSelected = List.bindContextMenuSelected
-    list.MultiClickEnabled = multiClick
 
     table.insert(lists, list)
+
+    RunService.Heartbeat:Connect(function()
+        list:Recalculate()
+    end)
 
     return list
 end
@@ -52,7 +46,6 @@ function ListButton.new(instance, list)
     local listInstance = list.Instance
 
     list.Buttons[instance] = listButton
-
     instance.Parent = listInstance
 
     instance.MouseButton1Click:Connect(function()
@@ -69,13 +62,13 @@ function ListButton.new(instance, list)
                 listButton.SelectedCallback()
             end
 
-            local foundButton = table.find(list.Selected, listButton)
+            local found = table.find(list.Selected, listButton)
 
-            if not foundButton then
+            if not found then
                 table.insert(list.Selected, listButton)
                 listButton.SelectAnimation:Play()
             else
-                table.remove(list.Selected, foundButton)
+                table.remove(list.Selected, found)
                 listButton.DeselectAnimation:Play()
             end
         end
@@ -102,9 +95,9 @@ end
 function List.clear(list)
     local instance = list.Instance
 
-    for _, listButton in pairs(instance:GetChildren()) do
-        if listButton:IsA("ImageButton") then
-            listButton:Destroy()
+    for _, child in pairs(instance:GetChildren()) do
+        if child:IsA("ImageButton") then
+            child:Destroy()
         end
     end
 
@@ -113,29 +106,26 @@ function List.clear(list)
 end
 
 function List.recalculate(list)
-    local total = 15
-    for _, child in ipairs(list.Instance:GetChildren()) do
-        if child:IsA("ImageButton") and child.Visible then
-            total += child.AbsoluteSize.Y + 5
-        end
-    end
-    list.Instance.CanvasSize = UDim2.new(0, 0, 0, total)
+    local layout = list.Layout
+    if not layout then return end
+
+    local sizeY = layout.AbsoluteContentSize.Y
+    local base = 15
+    list.Instance.CanvasSize = UDim2.new(0, 0, 0, base + sizeY)
 end
 
 function List.bindContextMenu(list, contextMenu)
     if not list.BoundContextMenu then
-        local function showContextMenu()
+        local function show()
             if not list.Selected then
                 contextMenu:Show()
             end
         end
 
-        list.Instance.ChildAdded:Connect(function(instance)
-            instance.MouseButton2Click:Connect(showContextMenu)
-            instance.MouseButton1Click:Connect(function()
-                if pressHold then
-                    showContextMenu()
-                end
+        list.Instance.ChildAdded:Connect(function(child)
+            child.MouseButton2Click:Connect(show)
+            child.MouseButton1Click:Connect(function()
+                if pressHold then show() end
             end)
         end)
 
@@ -145,18 +135,16 @@ end
 
 function List.bindContextMenuSelected(list, contextMenu)
     if not list.BoundContextMenuSelected then
-        local function showContextMenu()
+        local function show()
             if list.Selected then
                 contextMenu:Show()
             end
         end
 
-        list.Instance.ChildAdded:Connect(function(instance)
-            instance.MouseButton2Click:Connect(showContextMenu)
-            instance.MouseButton1Click:Connect(function()
-                if pressHold then
-                    showContextMenu()
-                end
+        list.Instance.ChildAdded:Connect(function(child)
+            child.MouseButton2Click:Connect(show)
+            child.MouseButton1Click:Connect(function()
+                if pressHold then show() end
             end)
         end)
 
@@ -201,7 +189,7 @@ end)
 
 oh.Events.ListInputEnded = UserInput.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.LeftControl then
-        ctrlHeld = false 
+        ctrlHeld = false
     end
 end)
 
