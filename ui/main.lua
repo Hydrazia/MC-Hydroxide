@@ -29,7 +29,6 @@ getgenv().MouseInFrame = function(uiobject)
 	local mouse = game:GetService("Players").LocalPlayer:GetMouse()
     local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
     local x_cond = uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
-
 	return (y_cond and x_cond)
 end
 
@@ -45,15 +44,12 @@ getgenv().signaluis = UserInput.InputBegan:Connect(function(input,gp)
 		local startClock = os.clock()
 		task.spawn(function()
 			local threshold = 0.4
-			repeat task.wait() until (os.clock()-startClock) > threshold  or not Signal
+			repeat task.wait() until (os.clock()-startClock) > threshold or not Signal
 			if (os.clock()-startClock) < threshold then return end
 			pressHold = true
 		end)
 		Signal = UserInput.InputEnded:Connect(function()
 			for i, v in pairs(touching) do
-				if v == true then
-					--print(i,v)
-				end
 				touching[i] = false
 			end
 			touchPoints[key] = nil
@@ -77,7 +73,6 @@ function moduleError(err)
 	end
 
 	MessageBox.Show("An error has occurred", message, MessageType.OK, function()
-		--Interface:Destroy()
 	end)
 end
 
@@ -118,11 +113,9 @@ local dragging, dragStart, startPos
 Drag.InputBegan:Connect(function(input)
 	if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
 		local dragEnded 
-
 		dragging = true
 		dragStart = input.Position
 		startPos = Base.Position
-
 		dragEnded = input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
@@ -139,24 +132,35 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
-Open.MouseButton1Click:Connect(function()
+local function openUI()
+	Base.Visible = true
+	Base.Active = true
+	Open.Visible = false
+	Open.Active = false
 	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15)
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
-end)
+end
 
-Collapse.MouseButton1Click:Connect(function()
+local function collapseUI()
+	Open.Visible = true
+	Open.Active = true
 	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15)
+	task.delay(0.16, function()
+		Base.Visible = false
+		Base.Active = false
+	end)
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15)
-end)
+end
+
+Open.MouseButton1Click:Connect(openUI)
+Collapse.MouseButton1Click:Connect(collapseUI)
 
 Interface.Name = HttpService:GenerateGUID(false)
 if getHui then
 	Interface.Parent = CoreGui or getHui()
 else
 	if syn then
-		--syn.protect_gui(Interface)
 	end
-
 	Interface.Parent = CoreGui
 end
 
