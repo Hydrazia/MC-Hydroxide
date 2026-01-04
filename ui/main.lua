@@ -185,13 +185,13 @@ else
 	Interface.Parent = CoreGui
 end
 
--- initial state: start collapsed with open button visible, no teleport
+-- INITIAL STATE: UI starts OPEN, button hidden
 Base.Visible = true
 Base.Active = true
-Base.Position = constants.closed
+Base.Position = constants.opened
 
 Open.Visible = false
 Open.Active = false
-Open.Position = constants.reveal
+Open.Position = constants.conceal
 
 return Interface
