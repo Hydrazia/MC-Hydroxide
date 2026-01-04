@@ -29,7 +29,6 @@ getgenv().MouseInFrame = function(uiobject)
 	local mouse = game:GetService("Players").LocalPlayer:GetMouse()
     local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
     local x_cond = uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
-
 	return (y_cond and x_cond)
 end
 
@@ -38,22 +37,21 @@ if signaluis then
 end
 
 getgenv().signaluis = UserInput.InputBegan:Connect(function(input,gp)
-	if (input.UserInputType == Enum.UserInputType.Touch) then
+	if input.UserInputType == Enum.UserInputType.Touch then
 		conduct += 1
 		local key, Signal = conduct, true
 		touchPoints[key] = input.Position
+
 		local startClock = os.clock()
 		task.spawn(function()
 			local threshold = 0.4
-			repeat task.wait() until (os.clock()-startClock) > threshold  or not Signal
+			repeat task.wait() until (os.clock()-startClock) > threshold or not Signal
 			if (os.clock()-startClock) < threshold then return end
 			pressHold = true
 		end)
+
 		Signal = UserInput.InputEnded:Connect(function()
-			for i, v in pairs(touching) do
-				if v == true then
-					
-				end
+			for i in pairs(touching) do
 				touching[i] = false
 			end
 			touchPoints[key] = nil
@@ -71,7 +69,7 @@ local moduleId = {"RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","Upva
 function moduleError(err)
 	local message
 	if err:find("valid member") then
-		message = "The UI has updated, please rejoin and restart.\n\n" .. err
+		message = "The UI has updated, please rejoin.\n\n" .. err
 	else
 		message = string.format("Error:\n\n%s", err)
 	end
@@ -118,17 +116,16 @@ Base.Active = true
 
 local dragging, dragStart, startPos
 
+-- BEST PC + TOUCH DRAG SUPPORT
 Drag.InputBegan:Connect(function(input)
-	-- fixed parentheses for proper PC + touch behavior
-	if (input.UserInputType == Enum.UserInputType.MouseButton1) 
-		or (input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
-
-		local dragEnded 
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or (input.UserInputType == Enum.UserInputType.Touch and conduct == 0) then
 
 		dragging = true
 		dragStart = input.Position
 		startPos = Base.Position
 
+		local dragEnded
 		dragEnded = input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
@@ -139,125 +136,42 @@ Drag.InputBegan:Connect(function(input)
 end)
 
 oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch) then
+
 		local delta = input.Position - dragStart
-		Base.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		Base.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
 	end
 end)
 
+-- FIX A APPLIED HERE
 Open.MouseButton1Click:Connect(function()
 	Open:TweenPosition(constants.conceal, "Out", "Quad", 0.15, true)
 	task.wait(0.1)
-    
+
 	Open.Visible = false
 	Open.Active = false
-    
-	-- keep Base visible and ensure it can receive input when opened
+
 	Base.Active = true
-	-- Base.Visible stays true; never set to false to avoid UI/log issues
+	-- Base.Visible stays TRUE always (Fix A)
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15, true)
 end)
 
 Collapse.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.closed, "Out", "Quad", 0.15, true)
-	task.wait(0.15) 
-    
-	-- do NOT set Base.Visible = false; this is the core UI fix
-	Base.Active = false  -- disable interaction while collapsed
-    
+	task.wait(0.15)
+
+	Base.Active = false  -- disable input when collapsed
+
 	Open.Visible = true
 	Open.Active = true
 	Open:TweenPosition(constants.reveal, "Out", "Quad", 0.15, true)
 end)
-
-task.spawn(function()
-	local function FixScrolling(obj)
-		if obj:IsA("ScrollingFrame") then
-			obj.AutomaticCanvasSize = Enum.AutomaticSize.None
-			obj.ScrollBarThickness = 4
-			
-			local layout = obj:FindFirstChildWhichIsA("UIGridStyleLayout")
-			if layout then
-				local function update()
-					obj.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
-				end
-				layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
-				update()
-			end
-		end
-	end
-
-	for _, v in pairs(Interface:GetDescendants()) do
-		FixScrolling(v)
-	end
-	
-	Interface.DescendantAdded:Connect(FixScrolling)
-
-	local success, pages = pcall(function()
-		return Base:WaitForChild("Body", 5):WaitForChild("Pages", 5)
-	end)
-	
-	if not success or not pages then
-		return
-	end
-	
-	local function hasResults(resultsContainer)
-		if not resultsContainer then return false end
-		local childCount = 0
-		for _, child in pairs(resultsContainer:GetChildren()) do
-			if not child:IsA("UIListLayout") and 
-			   not child:IsA("UIPadding") and 
-			   not child:IsA("UICorner") and
-			   not child:IsA("UIGridLayout") and
-			   not child:IsA("UISizeConstraint") then
-				childCount = childCount + 1
-			end
-		end
-		return childCount > 0
-	end
-	
-	local function updateResultStatus(resultStatus)
-		if not resultStatus or not resultStatus.Parent then return end
-		resultStatus.Active = false
-		
-		local resultsContainer = resultStatus.Parent:FindFirstChild("Content") 
-			or resultStatus.Parent:FindFirstChild("Results")
-			or resultStatus.Parent:FindFirstChild("List")
-			or resultStatus.Parent:FindFirstChild("Container")
-		
-		if resultsContainer then
-			resultsContainer.Active = true
-			
-			local function updateVisibility()
-				local hasContent = hasResults(resultsContainer)
-				resultStatus.Visible = not hasContent
-			end
-			
-			updateVisibility()
-			resultsContainer.ChildAdded:Connect(function() task.wait(0.05) updateVisibility() end)
-			resultsContainer.ChildRemoved:Connect(function() task.wait(0.05) updateVisibility() end)
-		else
-			resultStatus.Visible = true
-		end
-	end
-	
-	for _, descendant in pairs(Interface:GetDescendants()) do
-		if descendant.Name == "ResultStatus" and descendant:IsA("TextLabel") then
-			updateResultStatus(descendant)
-		end
-	end
-end)
-
-local originalExit = oh.Exit
-oh.Exit = function()
-	if oh.Events.ResultStatusConnections then
-		for _, connection in pairs(oh.Events.ResultStatusConnections) do
-			pcall(function() connection:Disconnect() end)
-		end
-		oh.Events.ResultStatusConnections = nil
-	end
-	if originalExit then originalExit() end
-end
 
 Interface.Name = HttpService:GenerateGUID(false)
 if getHui then
@@ -269,9 +183,12 @@ else
 	Interface.Parent = CoreGui
 end
 
+-- INITIAL STATE FIX
 Base.Visible = true
+Base.Active = true
 Base.Position = constants.opened
-Open.Visible = false 
+
+Open.Visible = false
 Open.Active = false
 Open.Position = constants.conceal
 
