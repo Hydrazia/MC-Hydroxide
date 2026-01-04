@@ -25,6 +25,22 @@ function List.new(instance, multiClick)
     list.BindContextMenuSelected = List.bindContextMenuSelected
     list.MultiClickEnabled = multiClick
 
+    -- ⭐ FIX 1: Register list + auto-update CanvasSize
+    instance.Name = "List"
+    instance.ClipsDescendants = true
+
+    instance.ChildAdded:Connect(function()
+        task.defer(function()
+            list:Recalculate()
+        end)
+    end)
+
+    instance.ChildRemoved:Connect(function()
+        task.defer(function()
+            list:Recalculate()
+        end)
+    end)
+
     table.insert(lists, list)
 
     return list
@@ -41,11 +57,17 @@ function ListButton.new(instance, list)
     end
 
     instance.Parent = listInstance
+
+    -- ⭐ FIX 2: Recalculate after adding a button
+    task.defer(function()
+        list:Recalculate()
+    end)
+
     instance.MouseButton1Click:Connect(function()
         if not ctrlHeld and listButton.Callback and not pressHold then
             listButton.Callback()
         elseif not ctrlHeld and listButton.RightCallback and pressHold then
-			listButton.RightCallback()
+            listButton.RightCallback()
         elseif list.MultiClickEnabled and ctrlHeld then
             if not list.Selected then
                 list.Selected = {}
@@ -120,9 +142,9 @@ function List.bindContextMenu(list, contextMenu)
         list.Instance.ChildAdded:Connect(function(instance)
             instance.MouseButton2Click:Connect(showContextMenu)
             instance.MouseButton1Click:Connect(function()
-            	if pressHold then
-            		showContextMenu()
-            	end
+                if pressHold then
+                    showContextMenu()
+                end
             end)
         end)
 
@@ -141,9 +163,9 @@ function List.bindContextMenuSelected(list, contextMenu)
         list.Instance.ChildAdded:Connect(function(instance)
             instance.MouseButton2Click:Connect(showContextMenu)
             instance.MouseButton1Click:Connect(function()
-            	if pressHold then
-            		showContextMenu()
-            	end
+                if pressHold then
+                    showContextMenu()
+                end
             end)
         end)
 
@@ -172,6 +194,11 @@ function ListButton.remove(listButton)
     list.Buttons[instance] = nil 
 
     instance:Destroy()
+
+    -- ⭐ FIX 3: Recalculate after removing a button
+    task.defer(function()
+        list:Recalculate()
+    end)
 end
 
 oh.Events.ListInputBegan = UserInput.InputBegan:Connect(function(input)
