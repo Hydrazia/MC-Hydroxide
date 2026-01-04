@@ -120,16 +120,17 @@ function List.clear(list)
 end
 
 function List.recalculate(list)
-    local newHeight = 15
+    local y = 15
 
     for instance in pairs(list.Buttons) do
         if instance.Visible then
-            newHeight = newHeight + instance.AbsoluteSize.Y + 5
+            instance.Position = UDim2.new(0, 0, 0, y)
+            y = y + instance.AbsoluteSize.Y + 5
         end
     end
 
-    list.Instance.CanvasSize = UDim2.new(0, 0, 0, newHeight)
-end
+    list.Instance.CanvasSize = UDim2.new(0, 0, 0, y)
+    end
 
 function List.bindContextMenu(list, contextMenu)
     if not list.BoundContextMenu then
