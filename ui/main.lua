@@ -187,11 +187,11 @@ end
 
 -- initial state: start collapsed with open button visible, no teleport
 Base.Visible = true
-Base.Active = false
+Base.Active = true
 Base.Position = constants.closed
 
-Open.Visible = true
-Open.Active = true
+Open.Visible = false
+Open.Active = false
 Open.Position = constants.reveal
 
 return Interface
