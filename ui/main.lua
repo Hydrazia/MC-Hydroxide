@@ -69,7 +69,7 @@ end)
 -- MODULE LOADING
 local moduleId = { "RemoteSpy","ClosureSpy","ScriptScanner","ModuleScanner","UpvalueScanner","ConstantScanner" }
 
-function moduleError(err)
+local function moduleError(err)
 	local message
 	if err:find("valid member") then
 		message = "The UI has updated, please rejoin and restart.\n\n" .. err
@@ -100,7 +100,7 @@ local constants = {
 	conceal = UDim2.new(0.5, -15, -1, 0)
 }
 
--- ⭐ GLOBAL COLLAPSE FLAG
+-- GLOBAL COLLAPSE FLAG
 local collapsed = false
 
 -- UI ELEMENTS
@@ -159,7 +159,7 @@ oh.Events.Drag = UserInput.InputChanged:Connect(function(input)
 	end
 end)
 
--- ⭐ OPEN UI
+-- OPEN UI
 Open.MouseButton1Click:Connect(function()
 	collapsed = false
 
@@ -172,7 +172,7 @@ Open.MouseButton1Click:Connect(function()
 	Base:TweenPosition(constants.opened, "Out", "Quad", 0.15)
 end)
 
--- ⭐ COLLAPSE UI (FULL HIDE)
+-- COLLAPSE UI (FULL HIDE)
 Collapse.MouseButton1Click:Connect(function()
 	collapsed = true
 
@@ -204,7 +204,7 @@ Open.Visible = false
 Open.Active = false
 Open.Position = constants.conceal
 
--- ⭐ BLOCK HYDROXIDE FROM FORCING UI VISIBLE
+-- BLOCK HYDROXIDE FROM FORCING UI VISIBLE
 task.spawn(function()
 	while true do
 		task.wait()
@@ -213,6 +213,63 @@ task.spawn(function()
 			Base.Active = false
 		end
 	end
+end)
+
+-- UNIVERSAL LIST SYNC (fix overlap / clipping / bad scrolling)
+task.spawn(function()
+	-- auto-resize any scrolling frame that uses a UIListLayout
+	local function bindList(scrolling)
+		local layout = scrolling:FindFirstChildWhichIsA("UIListLayout")
+		if not layout then return end
+
+		local function resize()
+			local size = layout.AbsoluteContentSize
+			local padding = 0
+
+			local paddingObj = scrolling:FindFirstChildWhichIsA("UIPadding")
+			if paddingObj then
+				local top = paddingObj.PaddingTop.Offset
+				local bottom = paddingObj.PaddingBottom.Offset
+				padding = (top or 0) + (bottom or 0)
+			end
+
+			scrolling.CanvasSize = UDim2.new(0, 0, 0, size.Y + padding)
+		end
+
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+
+		scrolling.ChildAdded:Connect(function(child)
+			if child:IsA("GuiObject") then
+				task.defer(resize)
+			end
+		end)
+
+		scrolling.ChildRemoved:Connect(function(child)
+			if child:IsA("GuiObject") then
+				task.defer(resize)
+			end
+		end)
+
+		resize()
+	end
+
+	-- find all relevant scrolling frames in the interface
+	for _, desc in ipairs(Interface:GetDescendants()) do
+		if desc:IsA("ScrollingFrame") then
+			if desc:FindFirstChildWhichIsA("UIListLayout") then
+				bindList(desc)
+			end
+		end
+	end
+
+	-- also bind any future lists created at runtime (modules cloning templates, etc.)
+	Interface.DescendantAdded:Connect(function(desc)
+		if desc:IsA("ScrollingFrame") then
+			if desc:FindFirstChildWhichIsA("UIListLayout") then
+				bindList(desc)
+			end
+		end
+	end)
 end)
 
 -- AUTO UPDATE "NO RESULTS FOUND" ACROSS ALL MODULES
